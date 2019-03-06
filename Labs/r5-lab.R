@@ -1,0 +1,11 @@
+dat <- read.csv(url("https://raw.githubusercontent.com/grbruns/cst383/master/1994-census-summary.csv"))
+head(dat)
+rows=nrow(dat)
+u_marital = unique(dat$marital_status)
+u_native = unique(dat$native_country)
+num_u = nrow(u_native)
+min_age = min(dat$age)
+max_age = max(dat$age)
+dat1 = sample(dat,500)
+
+library(ggplot2)

@@ -1,0 +1,73 @@
+---
+title: "Data Exploration of Montgomery County, Maryland Crash Data"
+author: "Carlos, Sean, and Sathyan"
+output:
+  html_document:
+    df_print: paged
+---
+**Introduction**
+
+---
+**Data Acquisition**
+
+We downloaded the data from <https://data.montgomerycountymd.gov/Public-Safety/Crash-Reporting-Drivers-Data/mmzv-x632> on March 13, 2018 which contained data updated through March 8, 2018 "on motor vehicle operators (drivers) involved in traffic collisions occurring on county and local roadways."
+
+```{r echo=T}
+	# na.strings parameter sets CELLS of blank, space, NA, and N/A to the NA reserved value
+	dat <- read.csv("Crash_Data.csv",stringsAsFactors = F
+		, na.strings = c(""," ","NA","N/A"))
+	# create backup
+	dat_bkup <- dat
+```
+
+---
+**Data Cleanup**
+
+Some issues involved
+```{r echo=T}
+	naCols <- names(dat)[grep("N/A",dat)]
+```
+* The data frame has many cells with "N/A" included among a string of values in columns: **
+`r  naCols ` **
+* The date/time field data type is actually a  `r class(dat$Crash.Date.Time) ` type
+
+```{r echo=T}
+# strip N/A string from lists of values
+	dat[,naCols] <- apply(dat[,naCols], 2, function(x) gsub("N/A, ","",x))
+	dat[,naCols] <- apply(dat[,naCols], 2, function(x) gsub(", N/A","",x))
+# create a timestamp from the Crash Date Time string
+	dat$timesStamp <- as.POSIXct(strptime(dat$Crash.Date.Time, tz = "America/New_York"
+		,format = "%m/%d/%Y %I:%M:%S %p"))
+```
+---
+**Data Exploration**
+
+The data has `r nrow(dat)` rows and `r ncol(dat)` columns.
+
+
+
+```{r echo=T}
+str(dat)
+head(dat)
+sum(!complete.cases(dat))
+names(dat)
+
+sort(table(dat$Route.Type), decreasing = T)
+sort(table(dat$Collision.Type),decreasing = T)
+table(dat$Collision.Type,dat$Route.Type)
+prop.table(table(dat$Collision.Type,dat$Route.Type),2)
+par(mar=c(3,15,3,3))
+barplot(table(dat[dat$Driver.Substance.Abuse == "ALCOHOL CONTRIBUTED",]$Collision.Type),horiz = T,las=2)
+dat_dark <- subset(dat,dat$Light %in% c("DARK -- UNKNOWN LIGHTING","DARK LIGHTS ON","DARK NO LIGHTS"))
+prop.table(table(dat_dark$Collision.Type,dat_dark$Injury.Severity),2)
+prop.table(table(dat$Collision.Type,dat$Injury.Severity),1)
+
+```
+
+
+```{r echo=T}
+# cleanup
+#rm(naCols)
+#rm(dat,dat_bkup,dat_dark)
+```
+

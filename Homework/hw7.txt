@@ -1,0 +1,38 @@
+
+# Instructions: edit this file to provide your homework answers.
+# Problem numbers are shown on lines that begin with #@.
+#
+# Please put your solution to a problem after the line that gives
+# the number of that problem.  Each problem shows how your answer
+# should be given.
+#
+# Do not modify this file *except* to add lines as needed after each problem.
+# Blank lines are ignored.
+#
+# No points will be awarded to incorrectly-formatted files.
+#
+
+# 1 Concepts
+
+#@ 1_a -- enter 'y' or 'n'   (don't use quotes in your answers)
+n
+#@ 1_b -- enter 'y' or 'n'
+n
+#@ 1_c -- enter 'y' or 'n'
+n
+#@ 1_d -- enter 'a', 'b', or 'c'
+b
+#@ 1_e -- enter a number
+3
+# 2 Correlation and Conditional probability
+
+#@ 2_a -- enter the names of the two features, separated by commas
+Petal.Width, Petal.Length
+#@ 2_b -- enter a number between 0 and 1
+0.333
+#@ 2_c -- enter a number between 0 and 1
+0.909
+#@ 2_d -- enter a number between 0 and 1
+0.400
+#@ 2_e -- enter a number between 0 and 1
+0.060

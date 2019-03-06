@@ -1,0 +1,82 @@
+> # example used in the code
+> pmf = pmf_create(1:3, c(0.5, 0.1, 0.4))
+> pmf_sample(pmf, 4)
+[1] 3 1 1 3
+> pmf_expect(pmf)
+[1] 1.9
+> pmf_variance(pmf)
+[1] 0.89
+> pmf_prob(pmf, 1)
+[1] 0.5
+> pmf_prob(pmf, c(1,3))
+[1] 0.9
+> pmf_plot(pmf)
+> 
+> # PMF for McDonald's example
+> pmf = pmf_create(c(250, 540, 750), c(0.2, 0.5, 0.3))
+> 
+> pmf_plot(pmf)
+> hist(pmf_sample(pmf, 1000))
+> pmf_expect(pmf)
+[1] 545
+> sqrt(pmf_variance(pmf))
+[1] 173.2772
+> pmf_prob(pmf, c(250, 540))
+[1] 0.7
+> 
+> #
+> # test the random variable objects in homework 5
+> #
+> 
+> # example used in the ode
+> x = rv_create(data.frame(x1=c(0,0,1,1),x2=c(0,1,0,1)), probs=rep(0.25,4), vals=c(0,1,1,2))
+> y = rv_create(data.frame(x1=c(0,0,1,1),x2=c(0,1,0,1)), probs=rep(0.25,4), vals=c(0,1,1,0))
+> rv_sample(x, 5)
+[1] 1 1 2 1 1
+> rv_expect(x)
+[1] 1
+> rv_variance(x)
+[1] 0.5
+> rv_plot(x)
+> rv_prob(x, 2)
+[1] 0.25
+> rv_prob(x, 1:2)
+[1] 0.75
+> rv_event(x, 1)
+[1] FALSE  TRUE  TRUE FALSE
+> rv_event(x, 2)
+[1] FALSE FALSE FALSE  TRUE
+> rv_cond_prob(x, 1, c(TRUE, TRUE, TRUE, FALSE))
+[1] 0.6666667
+> rv_cond_prob(x, 2, c(TRUE, TRUE, TRUE, FALSE))
+[1] 0
+> rv_cond_prob(x, 1, rv_event(x, 1:2))
+[1] 0.6666667
+> z = rv_add(x,y)
+> rv_variance(z)
+[1] 0.75
+> x2 = rv_apply_fun(x, function(x) x^2)
+> rv_variance(x2)
+[1] 2.25
+> 
+> # random variable x is the sum of two dice rolls
+> n = 6
+> outcomes = expand.grid(1:n, 1:n)
+> probs = rep(1/(n^2), n^2)
+> vals = apply(outcomes, 1, function(x) x[1] + x[2])
+> x = rv_create(outcomes, probs, vals)
+> 
+> rv_plot(x)
+> hist(rv_sample(x, 10000))
+> rv_expect(x)
+[1] 7
+> rv_variance(x)
+[1] 5.833333
+> rv_prob(x, 2)
+[1] 0.02777778
+> rv_prob(x, 7)
+[1] 0.1666667
+> rv_prob(x, 2:10)
+[1] 0.9166667
+> rv_cond_prob(x, 2, rv_event(x, 1:3))
+[1] 0.3333333

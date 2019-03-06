@@ -1,0 +1,330 @@
+---
+title: "Size matters: using machine learning techniques to predict the age of abalone from different measures of size"
+author: "Holder A, Vucinich S, Welch J"
+date: "May 13, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(corrplot)
+library(caret)
+```
+
+
+###Introduction
+
+Abalone are single shelled sessile snails that inhabit the intertidal zone of marine ecosystems. Overexploitation, ocean acidification, and disease on the West Coast of the United States have significantly reduced population sizes for many species. As a result, two species (white and black) have been listed as federally endangered under the Endangered Species Act and three other species (pink, green, pinto) are part of the Species of Concern Program. There is tremendous interest to improve our understanding of these species so we can rebuild and conserve their populations. 
+
+Understainding the population biology of a species is critical for successful conservation and management. Unfortunately, obtaining the data required to make informed decisions (e.g. age of individuals, reproductive strategies) can be arduous and expensive. For abalone, an individua's age is determined by cutting the shell through the cone, staining it, and counting the number of rings (similar in concept to aging a tree). As one might expect, this method disrupts individuals, is time consuming, and can become expensive to collect. 
+
+Here, we attempt to address this issue and better understand to what extent different measures of size can be used to predict the age of abalone. We also wanted to investigate which machine learning method would be the most effective at prediction using this dataset. Specifically, we compared: linear regression, classfication trees, and K Nearest Neighbors (KNN) regression.
+
+
+###Data
+
+Warwick *et al.* (1994) conducted a study on the population biology of abalone (*Haliotis* species) in Tasmania. Data from that study has been made publically available by the UC Irvine Machine Learning Repository (Repository) (https://archive.ics.uci.edu/ml/datasets/Abalone), and was downloaded from the repository on May 3, 2018.
+
+```{r}
+# Set Working Directory
+rm(list = ls()); graphics.off()
+setwd("C:/Users/AHolder/Documents/01_School/CSUMB_Grad/18_S/CST383_IntroToDataScience/Homework/HW15_Project2")
+
+#Read in the data 
+dat = read.csv("abalone.csv")
+
+#How many rows/columns?
+nrw <- nrow(dat)
+ncl <- ncol(dat)
+
+colnames(dat) <- c("Sex", "Length", "Diameter", "Height", "Weight_W", "Weight_Shk", "Weight_V", "Weight_Shl", "Rings")
+
+```
+
+The dataset was comprised of nine (`r ncl`) columns and `r nrw` rows, with eight potential predictor variables and one response (Table 1). 
+
+
+Table 1. Variable names, descriptions, whether or not they were considered to be a predictor or the response, and whether they were continuous or categorical. 
+
+| Variable | Variable Description (units)               | pred/resp     | cont/cat    |
+|--------- |--------------------------------------------|-------------- |------------ |
+|Sex       |Male, Female, or Infant (M,F,I)             | predictor     | categorical |
+|Length    |Longest shell measurement (mm)              | predictor     | continuous  | 
+|Diameter  |Perpendicular to length (mm)                | predictor     | continuous  |
+|Height    |Measured with meat in shell (mm)            | predictor     | continuous  |
+|Weight_W  |Whole abalone weight (g)                    | predictor     | continuous  |
+|Weight_Shk|Shucked weight (weight of meat; g)          | predictor     | continuous  |
+|Weight_V  |Viscera weight (gut weight after bleeding; g)| predictor    | continuous  |
+|Weight_Shl|Shell weight after being dried (g)          | predictor     | continuous  |
+|Rings     |Number of rings (+1.5 gives the age in years)| response     | continuous  |
+
+###Data Exploration
+
+```{r}
+#Look at the structure of the data
+#str(dat)
+#Summarize data
+#summary(dat)
+
+#Find # complete cases
+compcases <- nrow(dat[complete.cases(dat)==TRUE,])/nrw*100
+
+#Find % of NA by column
+perc.NA = apply(dat,2,function(x) round(mean(is.na(dat)),2))
+
+#Find % of empty spaces by column
+perc.empty <- apply(dat,2,function(x) round(mean(x == ""),2))
+
+```
+
+We analyzed the structure of the data, general trends of and among variables, and how complete the dataset was. None of the columns contained NA values or empty strings; `r compcases`% of the records in the dataset were complete. 
+
+###Data Preprocessing
+
+The data we downloaded from the Repository was already scaled and our initial data exploration showed that very little preprocessing was necessary. However, we did decide to add an "Age" column to the dataset and remove the "Rings" column so we could predict age directly. Age was calculated by adding 1.5 to the number or rings for each record (Warwick *et al.* 1994).
+
+
+```{r}
+#Add Age column
+dat$Age <- dat$Rings+1.5
+
+#Remove Rings column
+dat <- dat[,-9] 
+
+```
+
+###Data Exploration
+
+We first explored how the continuous predictor variables were related to each other (i.e. correlation/collinearity). Unsurprisingly, we noticed that many variables  appeared to be highly correlated.
+
+```{r}
+plot(dat[,2:8])
+```
+
+To understand the severity of the collinearity, we created a correlation plot of the continuous variables, which confirmed that all variables were strongly positively correlated.
+
+```{r}
+#Correlation Plot
+corrplot(cor(dat[,2:8]),type = "upper",method = "square",mar = c(0.1,0.1,0.2,0.5))
+
+```
+
+We also wanted to get an understanding of how each predictor was related to age. Analysis of the plots below showed...  
+
+#SEAN TO WRITE INTERPRETATIONS
+
+```{r fig.height=8, fig.width=8}
+par(mfrow=c(4,3), mai= c(0.6, 0.6, 0.3, 0.2))
+plot(Age~Length, data = dat, xlab = "Length (mm)", ylab = "Age (Years)")
+plot(Age~Diameter, data = dat, xlab = "Diameter (mm)", ylab = "Age (Years)")
+plot(Age~Height, data = dat, xlab = "Height (mm)", ylab = "Age (Years)")
+hist(dat[dat$Sex=="M","Age"],main="Male abalone", xlab="Age (Years)",
+     xlim=c(0,30), col="gray")
+plot(Age~Weight_W, data = dat, xlab = "Whole Weight (g)", ylab = "Age (Years)")
+plot(Age~Weight_Shk, data = dat, xlab = "Shucked Weight (g)", ylab = "Age (Years)")
+hist(dat[dat$Sex=="F","Age"],main="Female abalone", xlab="Age (Years)",
+     xlim=c(0,30), col="gray")
+plot(Age~Weight_V, data = dat, xlab = "Viscera Weight (g)", ylab = "Age (Years)")
+plot(Age~Weight_Shl, data = dat, xlab = "Shell Weight (g)", ylab = "Age (Years)")
+hist(dat[dat$Sex=="I","Age"],main="Infant abalone", xlab="Age (Years)",
+     xlim=c(0,30),  col="gray")
+
+```
+
+###Model Development
+
+We started by separating the data into training and testing sets; 70% of the data was used for training our models and 30% was used for testing them.
+
+```{r}
+#set the seed
+set.seed(5367)
+
+# Create training and test data sets.
+tr_rows <- sample(nrow(dat),0.7*nrow(dat))
+tr_dat  <- dat[tr_rows,]
+te_dat  <- dat[-tr_rows,]
+
+#Get actuals for the testing set
+actuals = te_dat$Age
+
+```
+
+
+For each method, we: built a full model, which included all of the predictor variables, analyzed the accuracy of the full model using the root mean square error (RMSE) and learning curves, and developed and evaluated one or more additional models using knowledge we gained from the full model and the aforementioned assessment tools. Finally, we compared the RMSE values and learning curves among modeling methods to determine which method was the most effective at modeling abalone age given these data.
+
+####Linear Regression - Sean
+
+Collinearity is an issue for linear regression algorithms. 
+
+####Decision Trees
+#####Full Model
+
+The full regression tree model we built yielded an average RMSE of 2.5. Looking at the learning curve we can see the model is fairly balanced with a potentially high variance.
+
+#What do you mean by fairly balanced above??
+
+```{r}
+fit=rpart(Age ~ . , data=tr_dat)
+#prp(fit, varlen=-10, main="Regression tree for Abalone Age", box.col=c("green", "blue")[fit$frame$yval])
+#summary(fit)
+par(mar=c(1,1,1,1))
+fancyRpartPlot(fit, main="Regression Tree For Abalone Age", sub="")
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$Age
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$Age
+
+  fit=rpart(Age ~ . , data=tr_dat1)
+  
+  #training error
+  tr_predicted = predict(fit, tr_dat1)
+  err = sqrt(mean((tr_actual-tr_predicted)^2))
+  tr_errs = c(tr_errs, err)
+  
+  #test error
+    te_predicted = predict(fit, te_dat)
+  err = sqrt(mean((te_actual-te_predicted)^2))
+  te_errs = c(te_errs, err)
+
+}
+par(mar=c(5,5,3,3))
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(1,3), ylab = "RMSE", xlab = "Training Set Size")
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"), lty=1,bty="n")
+```
+
+#####Model 2
+For the second regression tree model we decided to only include shell weight (Weight_Shl) and shucked weight (Weight_Shk). The model containing only those predictors resulted in nearly the same RMSE as the full model. This model is also fairly well balanced with a slight variance.  
+```{r}
+fit=rpart(Age ~ Weight_Shl + Weight_Shk, data=tr_dat)
+#prp(fit, varlen=-10, main="Regression tree for Abalone Age", box.col=c("green", "blue")[fit$frame$yval])
+#summary(fit)
+par(mar=c(1,1,1,1))
+fancyRpartPlot(fit, main="Regression Tree For Abalone Age", sub="")
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$Age
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$Age
+
+  fit=rpart(Age ~ . , data=tr_dat1)
+  
+  #training error
+  tr_predicted = predict(fit, tr_dat1)
+  err = sqrt(mean((tr_actual-tr_predicted)^2))
+  tr_errs = c(tr_errs, err)
+  
+  #test error
+  te_predicted = predict(fit, te_dat)
+  err = sqrt(mean((te_actual-te_predicted)^2))
+  te_errs = c(te_errs, err)
+
+}
+par(mar=c(5,5,3,3))
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(1,3), ylab = "RMSE", xlab = "Training Set Size")
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"), lty=1,bty="n")
+```
+
+####KNN
+#####Full Model
+We tested how the full KNN model differed at ks of 1,5,10, and 50. The RMSEs of the full model (above 11 for all ks) using KNN regression were much higher than those from the previously analyzed methods. The learning curves for all ks analyzed suggest that this model has high bias.
+
+```{r}
+ks = c(1, 5, 10, 50)
+par(mfrow=c(2,2))
+
+for(k in ks){
+  te_errs = c()
+  tr_errs = c()
+  te_actual = te_dat$Age
+  tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+  
+  
+  for (tr_size in tr_sizes) {
+    tr_dat1 = tr_dat[1:tr_size,]
+    tr_actual = tr_dat1$Age
+    fit = knn3(Age ~ Sex + Length + Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=tr_dat1, k=k)
+    
+    # error on training set
+    tr_predicted = predict(fit, tr_dat1)
+    err = sqrt(mean((tr_actual-tr_predicted)^2))
+    tr_errs = c(tr_errs, err)
+    
+    # error on test set
+    te_predicted = predict(fit, te_dat)
+    err = sqrt(mean((te_actual-te_predicted)^2))
+    te_errs = c(te_errs, err)
+  }
+  
+  # Plot learning curve here
+  plot(tr_sizes, tr_errs,  col="blue", main=k, type="b", 
+       ylim=c(10,13), ylab = "RMSE", xlab = "Training Set Size")
+  lines(tr_sizes,te_errs, col="green", type="b")
+  legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"),
+         lty=1,bty="n")
+  
+}
+
+```
+
+#####Model 2
+Based on what we learned from the previous modeling methods, we decided to build the second KNN regression model using diameter and whole abalone weight (Weight_W). Again, the RMSEs for all k analyzed were around 11, substantially higher than the other two methods analyzed in this study. 
+
+```{r}
+ks = c(1, 5, 10, 50)
+par(mfrow=c(2,2))
+
+for(k in ks){
+  te_errs = c()
+  tr_errs = c()
+  te_actual = te_dat$Age
+  tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+  
+  
+  for (tr_size in tr_sizes) {
+    tr_dat1 = tr_dat[1:tr_size,]
+    tr_actual = tr_dat1$Age
+    fit1 = knn3(Age ~ Diameter + Weight_W, data=tr_dat1, k=k)
+    
+    # error on training set
+    tr_predicted = predict(fit1, tr_dat1)
+    err = sqrt(mean((tr_actual-tr_predicted)^2))
+    tr_errs = c(tr_errs, err)
+    
+    # error on test set
+    te_predicted = predict(fit1, te_dat)
+    err = sqrt(mean((te_actual-te_predicted)^2))
+    te_errs = c(te_errs, err)
+  }
+  
+  # Plot learning curve here
+  plot(tr_sizes, tr_errs,  col="blue", main=k, type="b", 
+       ylim=c(10,13), ylab = "RMSE", xlab = "Training Set Size")
+  lines(tr_sizes,te_errs, col="green", type="b")
+  legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"),
+         lty=1,bty="n")
+  
+}
+
+```
+
+###Conclusion
+
+The linear regression and classification tree models we developed given these data were much better than those developed using KNN regression methods (i.e. they had much lower RMSEs). However, even the best models had room for improvement in terms of their ability to accurately predict the age of an individual given the different measures of size. Depending on the application the linear regression and classification tree models could serve some use, but would not be a replacement for more precise methodologies. Investigations of the learning curves suggest that a larger data set would yield little improvement and new or better features need to be engineered to create more accurate models. 
+
+When comparing the best methodologies, it appears that the linear regression and regression tree models produced similar results. If only considering predictive ability, either one of these models could be a good choice for this data set. However, both predictability and interpretability are key for effective management, therefore making the linear regression models a slightly better choice in terms of application and management.  
+
+###References
+Warwick J Nash, Tracy L Sellers, Simon R Talbot, Andrew J Cawthorn and Wes B Ford. 1994.The Population Biology of Abalone (_Haliotis_ species) in Tasmania. I. Blacklip Abalone (_H. rubra_) from the North Coast and Islands of Bass Strait.Sea Fisheries Division, Technical Report No. 48 (ISSN 1034-3288) 

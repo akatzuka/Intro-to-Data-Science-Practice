@@ -1,0 +1,358 @@
+---
+title: "Predicting heart disease with logistic regression"
+author: "Sean Vucinich"
+date: "April 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+**Reading and Pre-processing of the Data Set**
+
+We begin with reading the heart disease data set and make names more useful to us.  The names are turned to lowercase and the output variable "output" is scaled so if it is 0, then heart disaease is absent, and if it is 1, then heart disease is present. The cateorical variables are also converted into factors so R can use them as indicator variables during the logistical regression.
+
+```{r echo=TRUE}
+#Source the Data set
+heart = read.table("https://raw.githubusercontent.com/grbruns/cst383/master/heart.dat", quote = "/")
+names(heart) <- c("AGE", "SEX", "CHESTPAIN", "RESTBP", "CHOL","SUGAR", "ECG", "MAXHR", "ANGINA", "DEP", "EXERCISE", "FLUOR","THAL", "OUTPUT")
+names(heart) = tolower(names(heart))
+
+#Convert output to range: 0-1
+heart$output = heart$output - 1  
+
+#Convert Categorical variables to factors
+heart$sex = factor(heart$sex)
+heart$sugar = factor(heart$sugar)
+heart$angina = factor(heart$angina)
+heart$chestpain = factor(heart$chestpain)
+heart$ecg = factor(heart$ecg)
+heart$thal = factor(heart$thal)
+heart$exercise = factor(heart$exercise)
+
+#Define split data function for later, when we need to generate our training and testing data
+split_data = function(dat, frac=c(0.75, 0.25)) {
+  # at least one set must be specified
+  k = length(frac)
+  stopifnot(k > 0)
+  
+  n = nrow(dat)
+  frac = frac/(sum(frac))
+  starts = c(1, round(cumsum(frac) * n)[-k])
+  ends = c(starts[-1]-1,n)
+  samp = sample(1:n)
+  data_sets = list()
+  for (i in 1:k) {
+    data_sets[[i]] = dat[samp[starts[i]:ends[i]],]
+  }
+  return(data_sets)
+} 
+```
+
+We also create a vector of numeric features for convenience.
+
+``` {r echo=TRUE}
+rv = c("age", "restbp", "chol", "maxhr", "dep")
+```
+
+**Data Exploration**
+
+To begin the data exploration, we start by looking at the summary and "str" of the data set, to get an idea of what sort of data is inside the set.
+
+``` {r echo=TRUE}
+str(heart)
+summary(heart)
+nrow(heart)
+```
+
+It appears that roughly half of the features are numeric and half of them are categorical (the variables we converted to factors earlier).  The data set also has 270 rows.
+
+The mean of the maximum heart rates in the data set is 149.68 BPM.
+```{r echo=TRUE}
+hist(heart$maxhr, main = "Maximum Heart Rate of Test Subject", xlab = "Heart Rate", col = "#FF88FF")
+```
+
+We can create a scatterplot of the numeric factors in order to try to find out if any of those factors are correlated strongly.
+
+```{r echo=TRUE}
+plot(heart[,rv])
+```
+From this scatterplot it would appear that no combination of these features are particularly, strongly correlated. Max heart rate (maxhr) and age (age) appear to be somewhat correlated, but none of the other combinations show a degree of correlation.
+
+```{r echo=TRUE}
+cor(heart[,rv])
+```
+The correlation matrix backs up this observation, showing that max heart rate and age are the strongest correlated in the set, however it is not very strong.
+
+```{r echo=TRUE}
+plot(heart[heart$output==0,]$maxhr,heart[heart$output==0,]$chol, main = "Heart Disease by Cholesterol and Maximum Heart Rate", xlab = "Maximum Heart Rate (maxhr)", ylab = "Cholesterol (chol)", col = "#88FF88", pch = 19)
+points(heart[heart$output==1,]$maxhr,heart[heart$output==1,]$chol, col = "#FF88FF", pch = 19)
+legend("topleft", legend = c("Heart Disease", "No Heart Disease"), col = c("#88FF88", "#FF88FF"), pch = 19)
+```
+
+**Building a Logistic Regression Model**
+
+Now we create the training and test data sets from the heart data set. Due to the data set being small, we need to be careful in spliting it to not introduce addition bias.  The data will be split randomly 75% to the training data and 25% to the testing data.
+
+```{r echo=TRUE}
+#Set seed for reproducibility
+set.seed(123)
+
+#Using the split_data function created earlier, we split the data sest
+split_d = split_data(heart, f = c(3,1))
+tr_dat = split_d[[1]]
+te_dat = split_d[[2]]
+```
+
+We build the first model using all the features in the data set in order to determine which features are the most significant for later iterations of the model. We will also look at the summary of the model in order to see which features appear relevant.
+
+```{r echo=TRUE}
+fit1 = glm(output ~ ., data=tr_dat, family=binomial)
+summary(fit1)
+```
+
+The summary indicates that the features "fluor" and "thal7" are the most relevant predictors. The features "maxhr", "chestpain4", and "sex1" are also relevant predictors, however they are not to the same degree that the other two are.
+
+**Classifying the Data**
+
+In order to get an idea on the accuracy of our model, we run the model on the test data. The examples are then classified using a threshold of 0.5. We then produce a confusion matrix of our predictions and the actuals.
+
+```{r echo=TRUE}
+y = predict(fit1, newdata=te_dat, type="response")
+predicts = as.numeric(y > 0.5)
+actuals = te_dat$output
+conf_mtx = table(predicts, actuals)
+conf_mtx
+```
+
+The accuracy of this model is good to start from, but it can be improved.
+
+```{r echo=TRUE}
+success_rate = mean(predicts == actuals)
+round(success_rate,3)
+```
+
+We also calculate the model's false positive and false negative rate to get an idea of how it biases towards when it predicts incorrectly.
+
+```{r echo=TRUE}
+false_positive_rate = mean(predicts == 1 & actuals == 0)
+round(false_positive_rate,3)
+false_negative_rate = mean(predicts == 0 & actuals == 1)
+round(false_negative_rate,3)
+```
+
+**Assessing the Model**
+
+By looking at the output of the model on the test cases, we are able to determine the effectiveness of the model. Viewing a histagram of the output shows us that our model isn't doing a great job, but it is a good place to start from. Also shown is the fact that our threshold of 0.5 appears to be a good classification threshold.
+
+```{r echo=TRUE}
+par(mfrow=c(1,2))
+hist(y[actuals == 0], main="Output when no heart disease", breaks=10, xlim=c(0,1), ylim=c(0,15), col="#FF88FF", xlab="model predictions")
+hist(y[actuals == 1], main="Output when heart disease", breaks=10, xlim=c(0,1), ylim=c(0,15), col="#FF88FF", xlab="model predictions")
+```
+
+The same data as the histograms presented as a double density plot to view it another way.
+
+```{r echo=TRUE}
+par(mfrow=c(1,1))
+plot(density(y[actuals == 1]), col="#FF88FF", main = "Double Density Plot of the Output", lwd = 2, xlab = "Logistic Regression Output")
+lines(density(y[actuals == 0]), col="#88FF88", lwd = 2)
+abline(v = 0.5, untf = FALSE, col="888888", lty = 2)
+legend("topleft", legend = c("Heart Disease", "No Heart Disease"), col = c("#FF88FF", "#88FF88"), pch = 19)
+```
+
+We can observe the impact that different classification thresholds would have on the output of the model. Also, we can caluclate the model's precision and its recall at each threshold level in order to get a better idea of what threshold level to use.
+
+```{r echo=TRUE}
+prec_recall_summary = function(predicts, actuals) 
+{
+  thresh = seq(0, 1, length.out=50)
+  prec_rec = data.frame()
+  actuals = factor(as.numeric(actuals))
+  for (th in thresh) 
+  {
+    predicts = factor(as.numeric(y >= th), levels=c("0","1"))
+    prec_rec = rbind(prec_rec, as.vector(table(predicts, actuals)))
+  }
+  names(prec_rec) = c("TN", "FP", "FN", "TP")
+  prec_rec$threshold = thresh
+  prec_rec$precision = prec_rec$TP/(prec_rec$TP + prec_rec$FP)
+  prec_rec$recall    = prec_rec$TP/(prec_rec$TP + prec_rec$FN)
+  prec_rec$false_pos = prec_rec$FP/(prec_rec$FP + prec_rec$TN)
+  return(prec_rec)
+}
+ 
+prec_rec1 = prec_recall_summary(predicts, actuals)
+```
+
+Now we can plot the result of the previous function in order to observe how the model's precision and recall values differ as the threshold value changes.
+
+```{r echo=TRUE}
+par(mfrow=c(2,1))
+par(mai=c(0.8,0.8,0.15,0.1))
+plot(precision~threshold, data = prec_rec1, col="#FF88FF", lwd = 2, type = "l")
+plot(recall~threshold, data = prec_rec1, col="#88FF88", lwd = 2, type = "l")
+```
+
+We can create a receiver operating characteristic (ROC) plot to get an idea of how well the clasifier is working. The closer the resulting plot is to a curve that hugs the y axis and the top edge of the plot, the stronger the classifier is.
+
+```{r data=TRUE}
+par(mfrow=c(1,1))
+plot(recall~false_pos, data = prec_rec1, type="l", lwd=2, col="#FF88FF", xlab="False Positive Rate", ylab="True Positive Rate")
+abline(a = 0,b = 1, lty = 2, lwd = 2, col = "#888888")
+legend("bottomright", legend = c("Model 1", "Random"), col = c("#FF88FF", "#888888"), pch = 19)
+```
+
+**Model 2**
+
+This model will aim to improve upon the previous model by using the features determined as most significant in the previous model.
+
+```{r echo=TRUE}
+fit2 = glm(output ~ fluor + thal + sex + chestpain + maxhr, data=tr_dat, family=binomial)
+summary(fit2)
+```
+
+The features fluor and thal7 appear to be the most significant, with maxhr also being a strong feature.
+
+The confusion matrix of the model using a classification threshold of 0.5.
+
+```{r echo=TRUE}
+y2 = predict(fit2, newdata=te_dat, type="response")
+predicts2 = as.numeric(y2 > 0.5)
+actuals = te_dat$output
+conf_mtx2 = table(predicts2, actuals)
+conf_mtx2
+```
+
+The accuracy of this model has been improved slightly from the first model.
+
+```{r echo=TRUE}
+success_rate2 = mean(predicts2 == actuals)
+round(success_rate2,3)
+```
+
+The double density plot for the second model.
+
+```{r echo=TRUE}
+par(mfrow=c(1,1))
+plot(density(y2[actuals == 1]), col="#FF88FF", main = "Double Density Plot of the Output", lwd = 2, xlab = "Logistic Regression Output")
+lines(density(y2[actuals == 0]), col="#88FF88", lwd = 2)
+abline(v = 0.5, untf = FALSE, col="888888", lty = 2)
+legend("topleft", legend = c("Heart Disease", "No Heart Disease"), col = c("#FF88FF", "#88FF88"), pch = 19)
+```
+
+Generating an ROC plot, we can see that compared to the previous model, this second model shows improved classifier performance.
+
+```{r data=TRUE}
+prec_recall_summary = function(predicts, actuals) 
+{
+  thresh = seq(0, 1, length.out=50)
+  prec_rec = data.frame()
+  actuals = factor(as.numeric(actuals))
+  for (th in thresh) 
+  {
+    predicts = factor(as.numeric(y2 >= th), levels=c("0","1"))
+    prec_rec = rbind(prec_rec, as.vector(table(predicts, actuals)))
+  }
+  names(prec_rec) = c("TN", "FP", "FN", "TP")
+  prec_rec$threshold = thresh
+  prec_rec$precision = prec_rec$TP/(prec_rec$TP + prec_rec$FP)
+  prec_rec$recall    = prec_rec$TP/(prec_rec$TP + prec_rec$FN)
+  prec_rec$false_pos = prec_rec$FP/(prec_rec$FP + prec_rec$TN)
+  return(prec_rec)
+}
+
+prec_rec2 = prec_recall_summary(predicts2, actuals)
+
+par(mfrow=c(1,1))
+plot(recall~false_pos, data = prec_rec1, type="l", lwd=2, col="#FF88FF", xlab="False Positive Rate", ylab="True Positive Rate")
+lines(recall~false_pos, data = prec_rec2, type="l", lwd=2, col="#88FF88")
+abline(a = 0,b = 1, lty = 2, lwd = 2, col = "#888888")
+legend("bottomright", legend = c("Model 1", "Model 2", "Random"), col = c("#FF88FF", "#88FF88", "#888888"), pch = 19)
+```
+
+We can generate a Precision-Recall plot in order to get an idea of the tradeoffs in getting a certain precision or recall value.
+
+```{r echo=TRUE}
+plot(precision~recall, data = prec_rec2, xlim = c(0.6,1),col = "#FF88FF",type = "l", lwd = 2, main = "Precision-Recall Curve")
+```
+
+**Model 3**
+
+For this model, we are only going to use the 4 least significant features from the data set. Those features being "sugar1", "chestpain3", and "ecg1", and "angina1". This model is purposely going to be an awful result in order to show what a bad model looks like, and how a good model (like the previous model) compares.
+
+```{r echo=TRUE}
+fit3 = glm(output ~ sugar + chestpain + ecg + angina, data=tr_dat, family=binomial)
+summary(fit3)
+```
+
+The confusion matrix of the model using a classification threshold of 0.5.
+
+```{r echo=TRUE}
+y3 = predict(fit3, newdata=te_dat, type="response")
+predicts3 = as.numeric(y3 > 0.5)
+actuals = te_dat$output
+conf_mtx3 = table(predicts3, actuals)
+conf_mtx3
+```
+
+The accuracy of this model has been reduced significantly from the previous models.
+
+```{r echo=TRUE}
+success_rate3 = mean(predicts3 == actuals)
+round(success_rate3,3)
+```
+
+The double density plot for this model.
+
+```{r echo=TRUE}
+par(mfrow=c(1,1))
+plot(density(y3[actuals == 1]), col="#FF88FF", main = "Double Density Plot of the Output", lwd = 2, xlab = "Logistic Regression Output")
+lines(density(y3[actuals == 0]), col="#88FF88", lwd = 2)
+abline(v = 0.5, untf = FALSE, col="888888", lty = 2)
+legend("topleft", legend = c("Heart Disease", "No Heart Disease"), col = c("#FF88FF", "#88FF88"), pch = 19)
+```
+
+Generating an ROC plot, we can see that compared to the previous models, this model shows worse classifier performance.
+
+```{r data=TRUE}
+prec_recall_summary = function(predicts, actuals) 
+{
+  thresh = seq(0, 1, length.out=50)
+  prec_rec = data.frame()
+  actuals = factor(as.numeric(actuals))
+  for (th in thresh) 
+  {
+    predicts = factor(as.numeric(y3 >= th), levels=c("0","1"))
+    prec_rec = rbind(prec_rec, as.vector(table(predicts, actuals)))
+  }
+  names(prec_rec) = c("TN", "FP", "FN", "TP")
+  prec_rec$threshold = thresh
+  prec_rec$precision = prec_rec$TP/(prec_rec$TP + prec_rec$FP)
+  prec_rec$recall    = prec_rec$TP/(prec_rec$TP + prec_rec$FN)
+  prec_rec$false_pos = prec_rec$FP/(prec_rec$FP + prec_rec$TN)
+  return(prec_rec)
+}
+
+prec_rec3 = prec_recall_summary(predicts3, actuals)
+
+par(mfrow=c(1,1))
+plot(recall~false_pos, data = prec_rec1, type="l", lwd=2, col="#FF88FF", xlab="False Positive Rate", ylab="True Positive Rate")
+lines(recall~false_pos, data = prec_rec2, type="l", lwd=2, col="#88FF88")
+lines(recall~false_pos, data = prec_rec3, type="l", lwd=2, col="#4488FF")
+abline(a = 0,b = 1, lty = 2, lwd = 2, col = "#888888")
+legend("bottomright", legend = c("Model 1", "Model 2", "Model 3", "Random"), col = c("#FF88FF", "#88FF88", "#4488FF", "#888888"), pch = 19)
+```
+
+Just for fun we can create the precision recall curve for this model, and see how large the tradeoffs with this model are in order to achieve a certain percision or recall value.
+
+```{r echo=TRUE}
+plot(precision~recall, data = prec_rec3, xlim = c(0.6,1),col = "#FF88FF",type = "l", lwd = 2, main = "Precision-Recall Curve")
+```
+
+**Conclusion**
+
+With the data set that was provided we generated 3 models that attempt to predict if a given person will have heart disease.  Model 1 was the baseline that used all features to predict and was decently accurate with a success rate of 85.5%. The second model, Model 2 was an improvement upon the first model that used the 5 most significant features in the data set in order to increase the accuracy of the model, which for this model was a rate of 87%.  Model 3 on the other hand was made using the 4 least significant features of the data set in order to attempt to create a worse case scenario model for predicitions.  This model was the least consistent with a success rate of only 76.8%.

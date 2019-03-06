@@ -1,0 +1,60 @@
+
+# Instructions: edit this file to provide your homework answers.
+# Problem numbers are shown on lines that begin with #@.
+#
+# Please put your solution to a problem after the line that gives
+# the number of that problem.  Each problem shows how your answer
+# should be given.
+#
+# Do not modify this file *except* to add lines as needed after each problem.
+# Blank lines are ignored.
+#
+# No points will be awarded to incorrectly-formatted files.
+#
+
+# Reading and lectures
+
+#@ 1a -- enter 'a' or 'b'  (don't use quotes in your answers)
+b
+#@ 1b -- enter the name of a country
+yugoslavia
+#@ 1c -- enter a number
+10
+#@ 1d -- enter 'a' or 'b'
+b
+#@ 1e -- enter 'a' or 'b'
+a
+# Machine learning
+
+#@ 2a -- enter a variable name
+weight
+#@ 2b -- enter a variable name
+feed
+#@ 2c -- enter a variable name
+feed
+#@ 2d -- enter a variable name
+weight
+#@ 2e -- enter a variable name
+weight
+
+#@ 2f -- enter two variable names, separated by commas
+len,dose
+#@ 2g -- enter a variable name
+supp
+#@ 2h -- enter a variable name
+dose
+#@ 2i -- enter a variable name
+len
+#@ 2j -- enter two variable names, separated by commas
+len,dose
+
+#@ 2k -- enter two variable names, separated by commas
+hp, disp
+#@ 2l -- enter a variable name
+cyl
+#@ 2m -- enter three variable names, separated by commas
+hp, wt, drat
+#@ 2n -- enter a variable name
+mpg
+#@ 2o -- enter three variable names, separated by commas
+hp, wt, qsec

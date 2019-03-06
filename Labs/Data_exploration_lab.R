@@ -1,0 +1,16 @@
+dat = read.csv("https://raw.githubusercontent.com/grbruns/cst383/master/1994-census-summary.csv")
+str(dat)
+summary(dat$education_num)
+hist(dat$education_num)
+barplot(table(dat$education_num))
+plot(density(dat$capital_gain), lwd=2)
+barplot(table(dat$workclass))
+barplot(table(dat$sex))
+par(mar=c(5,10,3,3))
+barplot(table(dat$marital_status), horiz = TRUE,las =1)
+
+mean(dat$native_country=="United_States", na.rm=TRUE)
+
+dat = read.csv("https://raw.githubusercontent.com/grbruns/cst383/master/College.csv")
+plot(F.Undergrad ~ Expend, data = dat, col="red4", pch=20)
+plot(F.Undergrad ~ Outstate, data = dat, col="red4", pch=20)

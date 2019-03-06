@@ -1,0 +1,240 @@
+---
+title: "Data Exploration of Montgomery County, Maryland Crash Data"
+author: "Carlos Huizar Valenzuela, Sean Vucinich, and Sathyan Sundaram"
+output:
+  html_document:
+    df_print: paged
+---
+**Introduction**
+This project is focusing on a data set that contains information on automobile accidents that occured in Montgomery County in Maryland.  The data set contains 32 discrete columns and 65000+ rows which correspond to reported accidents. The row amounts are variable due to the data set being updated weekly.
+---
+**Data Acquisition**
+
+We downloaded the data from <https://data.montgomerycountymd.gov/Public-Safety/Crash-Reporting-Drivers-Data/mmzv-x632> on March 13, 2018 which contained data updated through March 8, 2018 "on motor vehicle operators (drivers) involved in traffic collisions occurring on county and local roadways."
+
+```{r echo=T}
+	# na.strings parameter sets CELLS of blank, space, NA, and N/A to the NA reserved value
+	# dat <- read.csv("Crash_Reporting_-_Drivers_Data.csv",stringsAsFactors = F
+	# , na.strings = c(""," ","NA","N/A"))
+	# create backup
+	dat_bkup <- dat
+```
+
+---
+**Data Cleanup**
+
+Some issues involved
+```{r echo=T}
+	naCols <- names(dat)[grep("N/A",dat)]
+```
+* The data frame has many cells with "N/A" included among a string of values in columns: **
+`r  naCols ` **
+* The date/time field data type is actually a  `r class(dat$Crash.Date.Time) ` type
+
+```{r echo=T}
+# strip N/A string from lists of values
+	dat[,naCols] <- apply(dat[,naCols], 2, function(x) gsub("N/A, ","",x))
+	dat[,naCols] <- apply(dat[,naCols], 2, function(x) gsub(", N/A","",x))
+# create a timestamp from the Crash Date Time string
+	dat$timesStamp <- as.POSIXct(strptime(dat$Crash.Date.Time, tz = "America/New_York"
+		,format = "%m/%d/%Y %I:%M:%S %p"))
+```
+---
+**Data Exploration**
+
+The data has `r nrow(dat)` rows and `r ncol(dat)` columns.
+
+
+
+```{r echo=T}
+str(dat)
+head(dat)
+sum(!complete.cases(dat))
+names(dat)
+
+#sort(table(dat$Route.Type), decreasing = T)
+#sort(table(dat$Collision.Type),decreasing = T)
+#table(dat$Collision.Type,dat$Route.Type)
+#prop.table(table(dat$Collision.Type,dat$Route.Type),2)
+#par(mar=c(3,12,3,3))
+#barplot(table(dat[dat$Driver.Substance.Abuse == "ALCOHOL CONTRIBUTED",]$Collision.Type),horiz = T,las=2)
+#dat_dark <- subset(dat,dat$Light %in% c("DARK -- UNKNOWN LIGHTING","DARK LIGHTS ON","DARK NO LIGHTS"))
+#prop.table(table(dat_dark$Collision.Type,dat_dark$Injury.Severity),2)
+#prop.table(table(dat$Collision.Type,dat$Injury.Severity),1)
+
+```
+
+**Non Distracted Accidents **
+
+Using this plot I wanted to see what state people who had been in an accident were in at the time. Evaluating the data, most drivers claim to have been “Not Distracted” at the time of the accident, this was strange to me because it seemed like over 90% of the drivers claimed to be “Not Distracted”. This peeked my curiosity and lead me see what kind of accidents were most prevalent in drivers who claim to have been “Not Distracted”.
+```{r echo=T}
+par(mar=c(3,15,3,3))
+barplot(table(dat[dat$Traffic.Control == "TRAFFIC SIGNAL",]$Driver.Distracted.By),horiz = T,las=2, cex.names = 0.5)
+```
+
+Shows that drivers who claimed to be not distracted at the time of the accident where in crashes caused by same direction rear ends. This makes sense due to the nature of near ends being caused by something one driver had very little control of. The driver that had been apart of the report could have stated that they were not distracted during the accident but still got hit because of the other driver not being aware of his surroundings. This kind of crash can be be directed more towards someone else hitting your car.
+```{r echo=T}
+par(mar=c(3,15,3,3))
+barplot(table(dat[dat$Driver.Distracted.By == "NOT DISTRACTED",]$Collision.Type),horiz = T,las=2,cex.names = 0.5)
+```
+
+**Drunk Roads**
+
+I was looking into roads that had the most accidents while the driver was under the influence of alcohol to see if a certain road was more popular than others. While exploring this, I found that "Georgia Ave" has the most amount of accidents with drivers under the influence of alcohol. Not only did it have the most accidents, it was so significant that the road behind it was 10 less and behind that was 14~. There seems to be such a significant gap between this road and the rest.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Driver.Substance.Abuse == "ALCOHOL CONTRIBUTED",]$Road.Name),decreasing = TRUE)[1:20]
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+I wanted to look into the types of accidents on that road when people were drunk. So it seems that most were same direction rear ends by a significant amount. I thought that there would be more accidents that were single or head on, lucky these were not the case and from these results it seems that most of the crashes it was tame and not much was fatal. Just in case I had to check the severity of the crashes.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Road.Name == "GEORGIA AVE" & dat$Driver.Substance.Abuse=="ALCOHOL CONTRIBUTED",]$Collision.Type))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+Just as I predicted the severity of the accidents was near nothing.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Road.Name == "GEORGIA AVE" & dat$Driver.Substance.Abuse=="ALCOHOL CONTRIBUTED",]$Injury.Severity))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+**Report Type**
+
+I was looking for the accidents that drivers admited to being at fault along with the accident type so I can get a better understanding of what they are thinking. As it turns out there are almost no drivers that admit to causing the accident when it lead to a fatal one. Weither this is true or not is completely unknown to us, we can asses that not many drivers would admit to being the cause of death to another human.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Driver.At.Fault == "Yes",]$ACRS.Report.Type))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+To those that had admitted to being the cause of the accident and had been in a fatal crash, I wondered if it was all their fault. Possibly there might have been weather problems that could have disoriented them or caused their car to slip. In the end the plot shows that most of these accidents had been cased during a clear day with no weather impairment.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Driver.At.Fault == "Yes"& dat$ACRS.Report.Type == "Fatal Crash",]$Weather))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+**Pickup Truck Stats**
+
+I wanted to get the statistics of pickup trucks and them driving on County roads to see what kind of damage they obtain. It shows that out of the three leading types of damage, they are all really close to each other. One does not just flat out beat the rest in terms of numbers, this lead me to find the reason of the accidents for cars that have been disabled.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Vehicle.Body.Type == "PICKUP TRUCK" & dat$Route.Type == "County",]$Vehicle.Damage.Extent))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+Checking the surface condition as the intial cause for these accidents was incorect. This graph shows that most of the conditions the roads were in had been mostly dry. The condition of the roads surface was not the leading cause of accidents that left pickup trucks disabled. This leads me to check if drivers had been under the influce of some substance.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Vehicle.Body.Type == "PICKUP TRUCK" & dat$Route.Type == "County" & dat$Vehicle.Damage.Extent == "DISABLING",]$Surface.Condition))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+The amount of drivers that had been under the influence of anything was very minimal and shows that this is not the leading cause of pickup trucks that are left disabled. The final status I will check is if the driver was distracted at the time of the accident.
+```{r echo=T}
+par(mar=c(3,9,3,3))
+tb = sort(table(dat[dat$Vehicle.Body.Type == "PICKUP TRUCK" & dat$Route.Type == "County" & dat$Vehicle.Damage.Extent == "DISABLING",]$Driver.Substance.Abuse))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+Finally, I check if the driver had been distracted, however, most claim to have been not distracted at the time. With this information I will predict that there is no leading cause of crashes for pickup trucks that drive on county roads and are left disabled. There is many causes for this and each situation adds the the variety of causes for this type of accident.
+```{r echo=T}
+par(mar=c(3,16,3,3))
+tb = sort(table(dat[dat$Vehicle.Body.Type == "PICKUP TRUCK" & dat$Route.Type == "County" & dat$Vehicle.Damage.Extent == "DISABLING",]$Driver.Distracted.By))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+**NEW GRAPH**
+
+I wanted to see the amount of cars that get into an accident when the road is wet. This is strong data because it seems like it can help manufacturers in finding some problems in the cars ability to drive in wet conditions. Looking at this graph you can see that the number of cars that are passenger cars that are affected is significant. Although this could be because the range is so high for these types of cars, however, the amount of the others are extreamly low that it shows that there might be a problem.
+```{r echo=T}
+par(mar=c(3,16,3,3))
+tb = sort(table(dat[dat$Surface.Condition == "WET",]$Vehicle.Body.Type))
+barplot(tb,horiz = T,las=2, cex.names = 0.5)
+```
+
+**ACCIDENT MAP BY LAT AND LONG**
+
+I noticed that since the data set has the latitude and longitude coordinates for each accident, we are able to map out the locations of where the accidents occurred. By plotting the lat and long coodinates, the resulting graph ended up giving a map of the county down to the layout of the major roads due to the number of accidents that had occured. I then associated the types of injuries these accidents had to see if there were hotspots of the severity of these accidents.
+```{r echo=T}
+severity = sort(unique(dat$Injury.Severity))
+color_s = c("Red", "Black", "Pink", "Orange", "Blue")
+inj.color = data.frame(severity,color_s)
+dat = merge(dat,inj.color, by.x = "Injury.Severity", by.y = "severity")
+```
+Due to R Studio having issues with the colors set above, this color vector is to account for that to create the legend. Still not sure as to why the colors that are shown on the graph are different then the ones set.
+
+```{r echo=T}
+color_corrected = c("Red", "Black", "Green", "Green", "Blue")
+
+par(mar = c(3,3,3,3))
+plot(dat$Latitude, dat$Longitude, xlim = c(38.8,39.5), ylim = c(-77.5, -76.8), col = dat$color_s, pch = 16)
+legend("topright", legend = c("Fatal Injury", "No Apparent Injury", "Possible Injury", "Suspected Minor Injury", "Suspected Serious Injury"), col = color_corrected, pch = c(16, 16), cex = 0.8)
+```
+
+**ACCIDENTS AT TRAFFIC LIGHTS VS NO SIGNALS**
+I was looking at the column Traffic Control and got interested in the proportion of accidents that occured at Traffic Lights compared to No Traffic Lights, as well as these broken down to the times of day.  I predicted that the vast majority of the accidents in both categories would have taken place during the daylight hours, as the vast majority of the accidents were listed as in daylight.
+
+```{r echo=T}
+light_tctype = data.frame(dat$Light, dat$Traffic.Control)
+tc = light_tctype[light_tctype$dat.Traffic.Control == "TRAFFIC SIGNAL",]
+tc_counts = c(length(tc[tc$dat.Light == "DAYLIGHT",]$dat.Light), length(tc[tc$dat.Light == "DARK LIGHTS ON",]$dat.Light), length(tc[tc$dat.Light == "DARK NO LIGHTS",]$dat.Light),length(tc[tc$dat.Light == "DARK -- UNKNOWN LIGHTING",]$dat.Light)) tc_other = length(tc$dat.Light) - (tc_count[1] + tc_count[2] + tc_count[3] + tc_count[4])
+              
+tc_total = length(tc$dat.Light)
+
+nc = light_tctype[light_tctype$dat.Traffic.Control == "NO CONTROLS",]
+nc_counts = c(length(nc[nc$dat.Light == "DAYLIGHT",]$dat.Light),length(nc[nc$dat.Light == "DARK LIGHTS ON",]$dat.Light),length(nc[nc$dat.Light == "DARK NO LIGHTS",]$dat.Light),length(nc[nc$dat.Light == "DARK -- UNKNOWN LIGHTING",]$dat.Light))
+nc_total = length(nc$dat.Light)
+nc_other = length(nc$dat.Light) - (nc_counts[1] + nc_counts[2] + nc_counts[3] + nc_counts[4])
+
+par(mfcol = (c(1,2)))
+barplot(c(tc_counts[1]/tc_total, tc_counts[2]/tc_total, tc_counts[3]/tc_total, tc_counts[4]/tc_total, tc_other/tc_total), names.arg = c("Daylight", "Dark - Lights On", "Dark - No Lights", "Dark - Unkown", "Other"), main = "Number of Accidents at Traffic Lights", ylim = c(0, 0.75), col = rainbow(5))
+barplot(c(nc_counts[1]/nc_total, nc_counts[2]/nc_total, nc_counts[3]/nc_total, nc_counts[4]/nc_total, nc_other/nc_total), names.arg = c("Daylight", "Dark - Lights On", "Dark - No Lights", "Dark - Unkown", "Other"), main = "Number of Accidents with No Signals", ylim = c(0,0.75), col = rainbow(5))
+
+par(mfcol = (c(1,1)))
+```
+My prediction seemed to have been correct, as roughly 70% of all accidents occured during the daylight hours.
+
+**OFF ROAD ACCIDENTS**
+While looking at the Off-Road Description column, I noticed that the rows that had information in this column had no information in the road name column amongst others, signifying that they occurred off of main roads.  With this in mind I wanted to see what the proportion of accidents where considered off-road and how many of those occurred in parking lots.
+
+```{r echo=T}
+
+off_road = dat[(dat$Road.Name == ""),]
+road_count = length(dat$Road.Name)
+off_road_prop = length(off_road$Road.Name)/road_count
+pLots = off_road[grep("PARKING LOT", off_road$Off.Road.Description),]
+pLots2 = off_road[grep("parking lot", off_road$Off.Road.Description),]
+p_l = sum(length(pLots$Report.Number), length(pLots2$Report.Number))
+p_l_prop = p_l/road_count
+other_prop = off_road_prop - p_l_prop
+
+par(mar = c(3,3,3,3))
+barplot(c(off_road_prop, p_l_prop, other_prop), names.arg = c("Off Road", "Parking Lots", "Others"), ylim = c(0,0.15), main = "Proportion of Off-Road Accidents and Parking Lot Accidents", col = "#5555FF")
+
+```
+
+
+**CRASHES PER MONTH**
+For something simplier but also interesting, the next idea to explore was to see what the basic breakdown of accidents by month for the entire data set was. I was prediciting that the months would mostly be similar in terms of distribution.
+
+```{r echo=T}
+dat$timeStamp = strptime(as.character(dat$Crash.Date.Time), "%m/%d/%Y %I:%M:%S %p", tz="EST")
+timeDat = dat[(dat$timeStamp$year + 1900) != 2018,]
+months = c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+par(mar=c(3,15,3,3))
+barplot(table(timeDat$timeStamp$mon), main="Crashes Per Month (2015 - 2017)", col="#FF3333", xlab = "Months", names.arg = months, horiz = TRUE, las = 1)
+```
+As predicted the months are roughly the same, however October is notably the most, but the data is mostly uniform.
+```{r echo=T}
+# cleanup
+#rm(naCols)
+#rm(dat,dat_bkup,dat_dark)
+```
+
+---
+** Conclusion **
+Throughout the exploration of the data set used in this project, this group ws able to discover several intersting relations between various variables.  These relations show information such as the types of accidents occuring at traffic lights and without, and a mappping of the severity of accidents by the GPS location of the crash, amongst others.  These relations show an insight into the data that could be used to learn about how these accidents occur.

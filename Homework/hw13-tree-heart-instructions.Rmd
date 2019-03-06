@@ -1,0 +1,149 @@
+---
+title: "Predicting heart disease with classification trees"
+author: "Glenn Bruns"
+date: "April 11, 2017"
+output: html_document
+---
+
+<!-- change echo=FALSE to echo=TRUE to show code -->
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(prompt=TRUE, comment="", echo=TRUE)
+```
+
+<i>This week I want you to produce a report (written as an .Rmd file)
+that will report on predicting heart disease with classification
+trees.
+
+Below I give suggestions on the structure of your report, ideas on
+things you can include, and a little R code.  My comments are in
+italics -- you should remove them from your report.
+
+In your .Rmd file you should show all of your R code.
+
+Have fun -- pretend you are a consultant and were hired to do this as
+a small job.</i>
+
+```{r collapse=TRUE, warning=FALSE}
+library(rpart)
+library(rpart.plot)
+library(maptree)
+# the following utility files can be found attached to the assignment
+source("https://raw.githubusercontent.com/grbruns/cst383/master/lin-regr-util.R")
+source("https://raw.githubusercontent.com/grbruns/cst383/master/class-util.R")
+```
+
+### Reading and preprocessing the data
+
+<i>The first thing you'll need to do is read and preprocess the data.</i>
+
+```{r}
+heart = read.table("https://raw.githubusercontent.com/grbruns/cst383/master/heart.dat", quote = "/")
+names(heart) <- c("AGE", "SEX", "CHESTPAIN", "RESTBP", "CHOL",
+                  "SUGAR", "ECG", "MAXHR", "ANGINA", "DEP", "EXERCISE", "FLUOR",
+                  "THAL", "OUTPUT")
+names(heart) = tolower(names(heart))
+
+# convert output to factor
+heart$output = factor(heart$output)
+```
+
+### Data exploration
+
+<i>For data exploration I want you to spend some time playing with
+various plots to find some that you would like to include in this
+section of your own report.  Don't forget that it is usually wise 
+to start with 'str' and 'summary'.  However, I don't want to see
+any length text output in your report.
+
+You can re-use some of the code you have used to explore the heart
+disease data in the past, but don't just copy it.</i>
+
+### Building a classification tree
+
+<i>In this section you should create training and test data sets,
+and build a first classification tree with the training data using package 'rpart'.
+
+Please use the code below to get your training and test sets, and <b>do
+not modify the seed</b>.
+
+Feel free to use the R files containing utility functions, that are
+shown in the 'source' statements above.
+
+You should also display the tree you created, and examine the fitted
+tree using 'summary'.  You may want to comment on feature importance.
+</i>
+
+```{r}
+# training and test sets
+set.seed(132)
+split = split_data(heart)
+tr_dat = split[[1]]
+te_dat = split[[2]]
+```
+
+### Classifying test data
+
+<i>In this section you should run your classification tree on the training
+data and on the test data. </i>
+
+### Assessing the model
+
+<i>Minimally you will report your accuracy (success rate), and present a confusion matrix.
+
+Make your own choices about what other diagnostic plots to report.
+
+Note that rpart can be used to predict either class labels or 
+probabilities.  You can try getting probabilities, and then using some
+of the diagnostic plots we used with logistic regression.  However,
+I've found that some of the plots used with logistic regression,
+such as ROC plots, don't work well with rpart.
+
+I would like you to produce a learning curve to try to see whether
+high bias or high variance is a problem.  You should use this
+information in deciding what to do next.  (See the 
+ <a href="https://docs.google.com/document/d/e/2PACX-1vTtUTDfrda6_GONR88NlyYOMorq1vqReLMi8MWszemTGYHP9wdWelEToFRnamNJz7HFnb9aygKIimkt/pub">System Design lab</a> 
+ for code helpful in creating a learning curve.)  </i>
+
+### Model 2
+
+<i>Based on what you learned above, you will probably
+want to build one or more additional models.  You should assess
+additional models similarly to how you assessed your first one.</i>
+
+======================
+
+<i>
+Your report will be graded subjectively using the following criteria:
+
+* does your code run without errors?
+
+* does anything look obviously wrong in your output?
+
+* is your report professional looking, with correct English, good-looking
+  plots, etc.?
+
+* did you try at least two models, and produce all of the minimally-suggested
+  output (confusion matrix, learning curve, etc.)?
+
+* were you creative and smart in decisions about the data exploration you
+  performed, the models you built, the diagnostic tests you performed?  
+  Overall, were you effective?  Did your model work well?
+</i>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

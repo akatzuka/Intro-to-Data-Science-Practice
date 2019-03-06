@@ -1,0 +1,42 @@
+
+# Instructions: edit this file to provide your homework answers.
+# Problem numbers are shown on lines that begin with #@.
+#
+# Please put your solution to a problem after the line that gives
+# the number of that problem.  Each problem shows how your answer
+# should be given.
+#
+# I've included the answer to problem 2a below as an example.
+#
+# Do not modify this file *except* to add lines as needed after each problem.
+# Blank lines are ignored.
+#
+# The homework will be graded by a script, so you will not get points
+# if you don't follow these formatting instructions.
+#
+
+# 1 Probability
+
+#@ 1a -- enter 'a', 'b', or 'c'  (don't use quotes in your answer)
+a
+
+#@ 1b -- enter 'y' or 'n'
+y
+
+#@ 1c -- enter 'a', 'b', or 'c'
+a
+
+#@ 1d -- enter 'y' or 'n'
+y
+
+#@ 1e -- enter a number between 0 and 1, inclusive, as a decimal number or a fraction
+0.25
+
+#@ 1f -- enter a number between 0 and 1, inclusive
+0.25
+
+#@ 1g -- enter a number between 0 and 1, inclusive
+120/216
+
+#@ 1h -- enter a number between 0 and 1, inclusive
+0.529

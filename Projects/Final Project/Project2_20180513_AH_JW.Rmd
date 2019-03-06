@@ -1,0 +1,604 @@
+---
+title: 'Size matters: using machine learning techniques to predict the age of abalone
+  from different measures of size'
+author: "Holder A, Vucinich S, Welch J"
+date: "May 13, 2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(corrplot)
+library(caret)
+```
+
+
+###Introduction
+
+Abalone are single shelled sessile snails that inhabit the intertidal zone of marine ecosystems. Overexploitation, ocean acidification, and disease on the West Coast of the United States have significantly reduced population sizes for many species. As a result, two species (white and black) have been listed as federally endangered under the Endangered Species Act and three other species (pink, green, pinto) are part of the Species of Concern Program. There is tremendous interest to improve our understanding of these species so we can rebuild and conserve their populations. 
+
+Understainding the population biology of a species is critical for successful conservation and management. Unfortunately, obtaining the data required to make informed decisions (e.g. age of individuals, reproductive strategies) can be arduous and expensive. For abalone, an individua's age is determined by cutting the shell through the cone, staining it, and counting the number of rings (similar in concept to aging a tree). As one might expect, this method disrupts individuals, is time consuming, and can become expensive to collect. 
+
+Here, we attempt to address this issue and better understand to what extent different measures of size can be used to predict the age of abalone. We also wanted to investigate which machine learning method would be the most effective at prediction using this dataset. Specifically, we compared: linear regression, classfication trees, and K Nearest Neighbors (KNN) regression.
+
+
+###Data
+
+Warwick *et al.* (1994) conducted a study on the population biology of abalone (*Haliotis* species) in Tasmania. Data from that study has been made publically available by the UC Irvine Machine Learning Repository (Repository) (https://archive.ics.uci.edu/ml/datasets/Abalone), and was downloaded from the repository on May 3, 2018.
+
+```{r}
+# Set Working Directory
+rm(list = ls()); graphics.off()
+setwd("C:/Users/AHolder/Documents/01_School/CSUMB_Grad/18_S/CST383_IntroToDataScience/Homework/HW15_Project2")
+
+#Read in the data 
+dat = read.csv("abalone.csv")
+
+#How many rows/columns?
+nrw <- nrow(dat)
+ncl <- ncol(dat)
+
+colnames(dat) <- c("Sex", "Length", "Diameter", "Height", "Weight_W", "Weight_Shk", "Weight_V", "Weight_Shl", "Rings")
+
+```
+
+The dataset was comprised of nine (`r ncl`) columns and `r nrw` rows, with eight potential predictor variables and one response (Table 1). 
+
+
+Table 1. Variable names, descriptions, whether or not they were considered to be a predictor or the response, and whether they were continuous or categorical. 
+
+| Variable | Variable Description (units)               | pred/resp     | cont/cat    |
+|--------- |--------------------------------------------|-------------- |------------ |
+|Sex       |Male, Female, or Infant (M,F,I)             | predictor     | categorical |
+|Length    |Longest shell measurement (mm)              | predictor     | continuous  | 
+|Diameter  |Perpendicular to length (mm)                | predictor     | continuous  |
+|Height    |Measured with meat in shell (mm)            | predictor     | continuous  |
+|Weight_W  |Whole abalone weight (g)                    | predictor     | continuous  |
+|Weight_Shk|Shucked weight (weight of meat; g)          | predictor     | continuous  |
+|Weight_V  |Viscera weight (gut weight after bleeding; g)| predictor    | continuous  |
+|Weight_Shl|Shell weight after being dried (g)          | predictor     | continuous  |
+|Rings     |Number of rings (+1.5 gives the age in years)| response     | continuous  |
+
+###Data Exploration
+
+```{r}
+#Look at the structure of the data
+#str(dat)
+#Summarize data
+#summary(dat)
+
+#Find # complete cases
+compcases <- nrow(dat[complete.cases(dat)==TRUE,])/nrw*100
+
+#Find % of NA by column
+perc.NA = apply(dat,2,function(x) round(mean(is.na(dat)),2))
+
+#Find % of empty spaces by column
+perc.empty <- apply(dat,2,function(x) round(mean(x == ""),2))
+
+```
+
+We analyzed the structure of the data, general trends of and among variables, and how complete the dataset was. None of the columns contained NA values or empty strings; `r compcases`% of the records in the dataset were complete. 
+
+###Data Preprocessing
+
+The data we downloaded from the Repository was already scaled and our initial data exploration showed that very little preprocessing was necessary. However, we did decide to add an "Age" column to the dataset and remove the "Rings" column so we could predict age directly. Age was calculated by adding 1.5 to the number or rings for each record (Warwick *et al.* 1994).
+
+
+```{r}
+#Add Age column
+dat$Age <- dat$Rings+1.5
+
+#Remove Rings column
+dat <- dat[,-9] 
+
+```
+
+###Data Exploration
+
+We first explored how the continuous predictor variables were related to each other (i.e. correlation/collinearity). Unsurprisingly, we noticed that many variables  appeared to be highly correlated.
+
+```{r}
+plot(dat[,2:8])
+```
+
+To understand the severity of the collinearity, we created a correlation plot of the continuous variables, which confirmed that all variables were strongly positively correlated.
+
+```{r}
+#Correlation Plot
+corrplot(cor(dat[,2:8]),type = "upper",method = "square",mar = c(0.1,0.1,0.2,0.5))
+
+```
+
+We also wanted to get an understanding of how each predictor was related to age. In general, as the predictors increase, the age of the abalone increases. The one exception to this trend is for the predictor height, which is mostly clustered around 0.2mm, with 2 outliers at 0.5 and 1.2mm respectively. The most populous age group in the data set is the group from 10 - 12 years old for both male and female abalone, with the range of ages appearing to be similar for both sexes. For infant abalone, the most populous age group is between 8 and 10 years old.
+
+```{r fig.height=8, fig.width=8}
+par(mfrow=c(4,3), mai= c(0.6, 0.6, 0.3, 0.2))
+plot(Age~Length, data = dat, xlab = "Length (mm)", ylab = "Age (Years)")
+plot(Age~Diameter, data = dat, xlab = "Diameter (mm)", ylab = "Age (Years)")
+plot(Age~Height, data = dat, xlab = "Height (mm)", ylab = "Age (Years)")
+hist(dat[dat$Sex=="M","Age"],main="Male abalone", xlab="Age (Years)",
+     xlim=c(0,30), col="gray")
+plot(Age~Weight_W, data = dat, xlab = "Whole Weight (g)", ylab = "Age (Years)")
+plot(Age~Weight_Shk, data = dat, xlab = "Shucked Weight (g)", ylab = "Age (Years)")
+hist(dat[dat$Sex=="F","Age"],main="Female abalone", xlab="Age (Years)",
+     xlim=c(0,30), col="gray")
+plot(Age~Weight_V, data = dat, xlab = "Viscera Weight (g)", ylab = "Age (Years)")
+plot(Age~Weight_Shl, data = dat, xlab = "Shell Weight (g)", ylab = "Age (Years)")
+hist(dat[dat$Sex=="I","Age"],main="Infant abalone", xlab="Age (Years)",
+     xlim=c(0,30),  col="gray")
+
+```
+
+###Model Development
+
+We started by separating the data into training and testing sets; 70% of the data was used for training our models and 30% was used for testing them.
+
+```{r}
+#set the seed
+set.seed(5367)
+
+# Create training and test data sets.
+tr_rows <- sample(nrow(dat),0.7*nrow(dat))
+tr_dat  <- dat[tr_rows,]
+te_dat  <- dat[-tr_rows,]
+
+#Get actuals for the testing set
+actuals = te_dat$Age
+
+```
+
+
+For each method, we: built a full model, which included all of the predictor variables, analyzed the accuracy of the full model using the root mean square error (RMSE) and learning curves, and developed and evaluated one or more additional models using knowledge we gained from the full model and the aforementioned assessment tools. Finally, we compared the RMSE values and learning curves among modeling methods to determine which method was the most effective at modeling abalone age given these data.
+
+###Linear Regression
+
+
+### Model 1
+
+For the linear regression based models, we being with creating a model based upon all the factors in the data set. This is to generate a base model to improve upon, and to determine which features are the most significant.
+```{r}
+fit_lm = lm(Age ~ Sex + Length + Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=tr_dat)
+```
+
+From looking at the summary of this model, we can observe that all the features in the data set, except for sex "M" and length, are significant to the model.
+
+Next in order to determine the effectiveness of the model, we will calculate the Root Mean Square Error (RMSE) of the model based off its predictions of the testing data.
+```{r}
+predicted1 <- predict(fit_lm, te_dat)
+actual <- te_dat$Age
+
+rmse1 = sqrt(mean((actual - predicted1)^2))
+```
+
+The calculated RMSE value is `r rmse1`. We will use this value to compare to the RMSE rate of the future models we create to determine their effectiveness.
+
+### Diagnostic Plots
+
+#### Cross Validation
+
+We can preform cross validation upon this model to determine an average RMSE value for the model as a whole. We can also use the histogram derived from this cross validation to compare models against each other.
+
+```{r}
+split_data = function(dat, frac=c(0.75, 0.25)) {
+  # at least one set must be specified
+  k = length(frac)
+  stopifnot(k > 0)
+  
+  n = nrow(dat)
+  frac = frac/(sum(frac))
+  starts = c(1, round(cumsum(frac) * n)[-k])
+  ends = c(starts[-1]-1,n)
+  samp = sample(1:n)
+  data_sets = list()
+  for (i in 1:k) {
+    data_sets[[i]] = dat[samp[starts[i]:ends[i]],]
+  }
+  return(data_sets)
+} 
+
+rmses = c()
+for (i in 1:100) {
+  dsets = split_data(dat, c(2, 1, 1))
+  train_dat = dsets[[1]]
+  valid_dat = dsets[[2]]
+  
+  fit = lm(Age ~ Sex + Length + Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=train_dat)
+  
+  predicted <- predict(fit, valid_dat)
+  actual <- valid_dat$Age
+  rmse <- sqrt(mean((actual - predicted)^2))
+  
+  rmses = c(rmses, rmse)
+}
+
+hist(rmses, col = "grey", main="Histogram of RMSE values from multiple validations")
+```
+
+#### Double Density Plot
+
+We can create a density plot of our predictions from the model versus the actual values in the test data in order to visualize how the predictions compare to the actual data.
+
+```{r}
+plot(density(predicted1), type="l", lwd=2, xlab="Ages", ylab="Density", main = "Density Plot: Predictions Vs. Actuals")
+lines(density(actual), type = "l", lty = 2)
+legend("topright", legend = c("Predictions", "Actuals"), lty = c(1,2), bty = "n")
+```
+
+#### Learning Curve
+
+The final diagnostic plot we can create is a learning curve of the model. This will show us how, as the size of the training set data increases, the RMSE value of our model changes. A learning curve will also show us if the model shows high bias or high variance in regards to the data.
+
+```{r}
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$Age
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+
+
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$Age
+  fit = lm(Age ~ Sex + Length + Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=tr_dat1)
+  
+  # error on training set
+  tr_predicted = predict(fit, tr_dat1)
+  err = sqrt(mean((tr_actual-tr_predicted)^2))
+  tr_errs = c(tr_errs, err)
+  
+  # error on test set
+  te_predicted = predict(fit, te_dat)
+  err = sqrt(mean((te_actual-te_predicted)^2))
+  te_errs = c(te_errs, err)
+}
+
+plot(tr_sizes, tr_errs,  col="blue", main= "Learning Curve - LR Model 1", type="b",ylim=c(1.5,3), ylab = "RMSE",xlab = "Training Set Size")
+lines(tr_sizes,te_errs, col="green", type="b", xlab = "Training Set Size")
+legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"), lty=1,bty="n")
+```
+
+From the learning curve, we can see that the model exhibts very high bias, however this makes sense as a majority of the features of the data set are highly correlated as they are features of an organism.
+
+### Model 2
+
+For this second linear regression based model, we will remove the features that were determined to be not significant in the creation of the previous model. These features being "Length" and "Sex", all other features are used in the creation of this model.
+
+```{r}
+fit2_lm = lm(Age ~ Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=tr_dat)
+```
+
+Next we will generate the predictions from our new model and calculate the RMSE value for it.
+
+```{r}
+predicted2 <- predict(fit2_lm, te_dat)
+actual <- te_dat$Age
+
+rmse2 = sqrt(mean((actual - predicted2)^2))
+```
+
+With an RMSE value of `r rmse2` we can see that this model has a slightly higher RMSE value as compared to the base model. This would indicate that this second model preforms slightly worse than the base.
+
+### Diagnostic Plots
+
+#### Cross Validation
+
+```{r}
+rmses = c()
+for (i in 1:100) {
+  dsets = split_data(dat, c(2, 1, 1))
+  train_dat = dsets[[1]]
+  valid_dat = dsets[[2]]
+  
+  fit = lm(Age ~ Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=train_dat)
+  
+  predicted <- predict(fit, valid_dat)
+  actual <- valid_dat$Age
+  rmse <- sqrt(mean((actual - predicted)^2))
+  
+  rmses = c(rmses, rmse)
+}
+
+hist(rmses, col="grey", main="Histogram of RMSE values from multiple validations")
+```
+
+Comparing this plot to the cross validation plot from the base model, we can see that the plots are very similar in terms of the range of RMSE values. However, the vast majority of the RMSE values are clustered from 2.2 to 2.35 for the second model, whereas they are more spread out for the base model. 
+
+#### Double Density Plot
+
+```{r}
+plot(density(predicted2), type="l", lwd=2, xlab="Ages", ylab="Density", main = "Density Plot: Predictions Vs. Actuals")
+lines(density(actual), type = "l", lty = 2)
+legend("topright", legend = c("Predictions", "Actuals"), lty = c(1,2), bty = "n")
+```
+
+#### Learning Curve
+
+```{r}
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$Age
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+
+
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$Age
+  fit = lm(Age ~ Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=tr_dat1)
+  
+  # error on training set
+  tr_predicted = predict(fit, tr_dat1)
+  err = sqrt(mean((tr_actual-tr_predicted)^2))
+  tr_errs = c(tr_errs, err)
+  
+  # error on test set
+  te_predicted = predict(fit, te_dat)
+  err = sqrt(mean((te_actual-te_predicted)^2))
+  te_errs = c(te_errs, err)
+}
+
+plot(tr_sizes, tr_errs,  col="blue", main= "Learning Curve - LR Model 2", type="b",ylim=c(1.5,3), ylab = "RMSE", xlab = "Training Set Size")
+lines(tr_sizes,te_errs, col="green", type="b", xlab = "Training Set Size")
+legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"), lty=1,bty="n")
+```
+
+Once again, the model shows exteremly high bias, however the RMSE values are lower when compared to the RMSE values of the base model.
+
+### Model 3
+
+For this third and final linear regression model, we will take the features that are easiest to apply in the field when taking measurements from the Abalone.
+
+```{r}
+fit3_lm = lm(Age ~ Diameter + Height + Weight_W, data=tr_dat)
+```
+
+Next we will generate the predictions from our new model and calculate the RMSE value for it.
+
+```{r}
+predicted3 <- predict(fit3_lm, te_dat)
+actual <- te_dat$Age
+
+rmse3 = sqrt(mean((actual - predicted3)^2))
+```
+
+With an RMSE value of `r rmse2` we can see that this model has a higher RMSE value as compared to both the base model and the second model. This would indicate that this third model preforms slightly worse than the other two models.
+
+### Diagnostic Plots
+
+#### Cross Validation
+
+```{r}
+rmses = c()
+for (i in 1:100) {
+  dsets = split_data(dat, c(2, 1, 1))
+  train_dat = dsets[[1]]
+  valid_dat = dsets[[2]]
+  
+  fit = lm(Age ~ Diameter + Height + Weight_W, data=train_dat)
+  
+  predicted <- predict(fit, valid_dat)
+  actual <- valid_dat$Age
+  rmse <- sqrt(mean((actual - predicted)^2))
+  
+  rmses = c(rmses, rmse)
+}
+
+hist(rmses, col="grey", main="Histogram of RMSE values from multiple validations")
+```
+
+Comparing this plot to the cross validation plot from the base model and the second model, we can see that this third plot has a different the range of RMSE values than the other two. However, like the base model, the RMSE values are mostly spread out across the range with a peak at 2.5 to 2.6.
+
+#### Double Density Plot
+
+```{r}
+plot(density(predicted3), type="l", lwd=2, xlab="Ages", ylab="Density", main = "Density Plot: Predictions Vs. Actuals")
+lines(density(actual), type = "l", lty = 2)
+legend("topright", legend = c("Predictions", "Actuals"), lty = c(1,2), bty = "n")
+```
+
+The prediction curve in this plot does not follow the actual curve well at all. Compared the the density plots of the other two models, this would indicate that this model does a worse job at making accurate predictions than the other two.
+
+#### Learning Curve
+
+```{r}
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$Age
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+
+
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$Age
+  fit = lm(Age ~ Diameter + Height + Weight_W, data=tr_dat1)
+  
+  # error on training set
+  tr_predicted = predict(fit, tr_dat1)
+  err = sqrt(mean((tr_actual-tr_predicted)^2))
+  tr_errs = c(tr_errs, err)
+  
+  # error on test set
+  te_predicted = predict(fit, te_dat)
+  err = sqrt(mean((te_actual-te_predicted)^2))
+  te_errs = c(te_errs, err)
+}
+
+plot(tr_sizes, tr_errs,  col="blue", main= "Learning Curve - LR Model 3", type="b",ylim=c(2,3), ylab = "RMSE", xlab = "Training Set Size")
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"), lty=1,bty="n")
+```
+
+Similar to the other models, this model shows high bias, but lower bias than both of the other models. Additionally, The RMSE values are higher than the value of both the base and second models.
+
+###Decision Trees
+###Full Model
+
+The full regression tree model we built yielded an average RMSE of 2.5. Looking at the learning curve we can see the model has a relatively high variance. 
+
+```{r}
+fit=rpart(Age ~ . , data=tr_dat)
+#prp(fit, varlen=-10, main="Regression tree for Abalone Age", box.col=c("green", "blue")[fit$frame$yval])
+#summary(fit)
+par(mar=c(1,1,1,1))
+fancyRpartPlot(fit, main="Regression Tree For Abalone Age", sub="")
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$Age
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$Age
+
+  fit=rpart(Age ~ . , data=tr_dat1)
+  
+  #training error
+  tr_predicted = predict(fit, tr_dat1)
+  err = sqrt(mean((tr_actual-tr_predicted)^2))
+  tr_errs = c(tr_errs, err)
+  
+  #test error
+    te_predicted = predict(fit, te_dat)
+  err = sqrt(mean((te_actual-te_predicted)^2))
+  te_errs = c(te_errs, err)
+
+}
+par(mar=c(5,5,3,3))
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(1,3), ylab = "RMSE", xlab = "Training Set Size")
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"), lty=1,bty="n")
+```
+
+###Model 2
+For the second regression tree model we decided to only include shell weight (Weight_Shl) and shucked weight (Weight_Shk). The model containing only those predictors resulted in nearly the same RMSE as the full model. This model is also has a relatively high variance. 
+
+```{r}
+fit=rpart(Age ~ Weight_Shl + Weight_Shk, data=tr_dat)
+#prp(fit, varlen=-10, main="Regression tree for Abalone Age", box.col=c("green", "blue")[fit$frame$yval])
+#summary(fit)
+par(mar=c(1,1,1,1))
+fancyRpartPlot(fit, main="Regression Tree For Abalone Age", sub="")
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$Age
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$Age
+
+  fit=rpart(Age ~ . , data=tr_dat1)
+  
+  #training error
+  tr_predicted = predict(fit, tr_dat1)
+  err = sqrt(mean((tr_actual-tr_predicted)^2))
+  tr_errs = c(tr_errs, err)
+  
+  #test error
+  te_predicted = predict(fit, te_dat)
+  err = sqrt(mean((te_actual-te_predicted)^2))
+  te_errs = c(te_errs, err)
+
+}
+par(mar=c(5,5,3,3))
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(1,3), ylab = "RMSE", xlab = "Training Set Size")
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"), lty=1,bty="n")
+```
+
+###KNN
+###Full Model
+We tested how the full KNN model differed at ks of 1,5,10, and 50. The RMSEs of the full model (above 11 for all ks) using KNN regression were much higher than those from the previously analyzed methods. The learning curves for all ks analyzed suggest that this model has high bias.
+
+```{r}
+ks = c(1, 5, 10, 50)
+par(mfrow=c(2,2))
+
+for(k in ks){
+  te_errs = c()
+  tr_errs = c()
+  te_actual = te_dat$Age
+  tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+  
+  
+  for (tr_size in tr_sizes) {
+    tr_dat1 = tr_dat[1:tr_size,]
+    tr_actual = tr_dat1$Age
+    fit = knn3(Age ~ Sex + Length + Diameter + Height + Weight_W + Weight_Shk + Weight_V + Weight_Shl, data=tr_dat1, k=k)
+    
+    # error on training set
+    tr_predicted = predict(fit, tr_dat1)
+    err = sqrt(mean((tr_actual-tr_predicted)^2))
+    tr_errs = c(tr_errs, err)
+    
+    # error on test set
+    te_predicted = predict(fit, te_dat)
+    err = sqrt(mean((te_actual-te_predicted)^2))
+    te_errs = c(te_errs, err)
+  }
+  
+  # Plot learning curve here
+  plot(tr_sizes, tr_errs,  col="blue", main=k, type="b", 
+       ylim=c(10,13), ylab = "RMSE", xlab = "Training Set Size")
+  lines(tr_sizes,te_errs, col="green", type="b")
+  legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"),
+         lty=1,bty="n")
+  
+}
+
+```
+
+###Model 2
+Based on what we learned from the previous modeling methods, we decided to build the second KNN regression model using diameter and whole abalone weight (Weight_W). Again, the RMSEs for all k analyzed were around 11, substantially higher than the other two methods analyzed in this study. 
+
+```{r}
+ks = c(1, 5, 10, 50)
+par(mfrow=c(2,2))
+
+for(k in ks){
+  te_errs = c()
+  tr_errs = c()
+  te_actual = te_dat$Age
+  tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+  
+  
+  for (tr_size in tr_sizes) {
+    tr_dat1 = tr_dat[1:tr_size,]
+    tr_actual = tr_dat1$Age
+    fit1 = knn3(Age ~ Diameter + Weight_W, data=tr_dat1, k=k)
+    
+    # error on training set
+    tr_predicted = predict(fit1, tr_dat1)
+    err = sqrt(mean((tr_actual-tr_predicted)^2))
+    tr_errs = c(tr_errs, err)
+    
+    # error on test set
+    te_predicted = predict(fit1, te_dat)
+    err = sqrt(mean((te_actual-te_predicted)^2))
+    te_errs = c(te_errs, err)
+  }
+  
+  # Plot learning curve here
+  plot(tr_sizes, tr_errs,  col="blue", main=k, type="b", 
+       ylim=c(10,13), ylab = "RMSE", xlab = "Training Set Size")
+  lines(tr_sizes,te_errs, col="green", type="b")
+  legend("bottomright", c("Training Error","Test Error"), col= c("blue","green"),
+         lty=1,bty="n")
+  
+}
+
+```
+
+###Conclusion
+
+The linear regression and regression tree models we developed given these data were much better than those developed using KNN regression methods (i.e. they had much lower RMSEs). However, even the best models had room for improvement in terms of their ability to accurately predict the age of an individual given the different measures of size. Depending on the application the linear regression and regression tree models could serve some use, but would not be a replacement for more precise methodologies. Investigations of the learning curves suggest that a larger data set would yield little improvement and new or better features need to be engineered to create more accurate models. 
+
+When comparing the best methodologies, it appears that the linear regression and regression tree models produced similar results. If only considering predictive ability, either one of these models could be a good choice for this data set. However, both predictability and interpretability are key for effective management, therefore making the linear regression models a slightly better choice in terms of application and management.  
+
+###References
+Warwick J Nash, Tracy L Sellers, Simon R Talbot, Andrew J Cawthorn and Wes B Ford. 1994.The Population Biology of Abalone (_Haliotis_ species) in Tasmania. I. Blacklip Abalone (_H. rubra_) from the North Coast and Islands of Bass Strait.Sea Fisheries Division, Technical Report No. 48 (ISSN 1034-3288) 

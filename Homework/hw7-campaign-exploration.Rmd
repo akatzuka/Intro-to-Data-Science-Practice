@@ -1,0 +1,162 @@
+---
+title: "US Presidential Campaign Data Exploration"
+author: "Glenn Bruns"
+date: "January 13, 2016"
+output: html_document
+---
+
+<!-- Homework instructions: 
+     Problems 1-10 are shown below.  Below each problem is an empty code "chunk".
+     Put R code in the code chunk as directed.  Do not change the file outside
+     of these chunks, except for the "read.csv" line you will see below. -->
+
+<!-- change echo=FALSE to echo=TRUE to show code -->
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(prompt=TRUE, comment="", echo=TRUE)
+```
+
+An exploration of campaign contribution data for the 2016 US presidential elections.
+
+```{r }
+dat = read.csv("https://www.dropbox.com/s/zut813baoehrxk0/campaign-ca-2016.csv?dl=1")
+
+# while getting things working, consider using this smaller file:
+# dat = read.csv("https://raw.githubusercontent.com/grbruns/cst383/master/campaign-ca-2016-sample.csv")
+```
+
+### Number of contributions per candidate
+
+<!-- 1. Show # of contributions by candidate with a barplot.  Hint: use table -->
+```{r}
+par(mar = c(5,15,3,3))
+barplot(sort(table(dat$cand_nm)), horiz = TRUE, las = 1)
+
+```
+
+### Median contribution by candidate
+
+<!-- 2. Show median contribution by candidate with a barplot.
+        Hint: use aggregate, and remember parameter names.arg of barplot. -->
+```{r}
+q = aggregate(contb_receipt_amt ~ cand_nm, data = dat,  median)
+par(mar = c(3,15,3,3))
+barplot(order(q$contb_receipt_amt, decreasing = TRUE), names.arg = q$cand_nm, horiz = TRUE, las = 2)
+
+```
+
+### Distrbution of contribution amounts
+
+<!-- 3. Show contribution amounts using a histogram;
+     show positive amounts under $3000 only -->
+
+```{r}
+index = dat$contb_receipt_amt > 0 & dat$contb_receipt_amt < 3000
+hist(dat$contb_receipt_amt[index],
+     xlim = c(0,3000),
+     ylim = c(0,160000),
+     main = "Contribution amounts from $0 - $3000 only",
+     col = "firebrick",
+     xlab = "Contribution (dollars)")
+
+```
+
+<!-- 4. Show contribution amounts using a histogram;
+     show positive amounts under $500 only -->
+
+```{r}
+index = dat$contb_receipt_amt > 0 & dat$contb_receipt_amt < 500
+hist(dat$contb_receipt_amt[index],
+     xlim = c(0,500),
+     ylim = c(0,40000),
+     main = "Contribution amounts from $0 - $500 only",
+     col = "firebrick",
+     xlab = "Contribution (dollars)")
+
+```
+
+<!-- 5. Show contribution amounts using a density plot;
+     show positive amounts under $500 only -->
+     
+```{r}
+index = dat$contb_receipt_amt > 0 & dat$contb_receipt_amt < 500
+plot(density(dat$contb_receipt_amt[index]),
+     main = "Contribution amounts from $0 - $500 only",
+     col = "firebrick",
+     xlab = "Contribution (dollars)")
+```
+
+### Contribution amounts for Rubio and Cruz
+
+<!-- 6. Show positive contribution amounts under 1000 in two plots,
+     one for Rubio and one for Cruz.  Use density plots. -->
+     
+```{r}
+par(mfrow = c(2,1))
+plot(density(dat[dat$contb_receipt_amt > 0 & dat$contb_receipt_amt < 1000 & dat$cand_nm == "Cruz, Rafael Edward 'Ted'", "contb_receipt_amt"]),
+     main = "Positive contributions under $1000 for Ted Cruz",
+     col = "firebrick",
+     xlab = "Contribution (dollars)")
+plot(density(dat[dat$contb_receipt_amt > 0 & dat$contb_receipt_amt < 1000 & dat$cand_nm == "Rubio, Marco", "contb_receipt_amt"]),
+     main = "Positive contributions under $1000 for Marco Rubio",
+     col = "firebrick",
+     xlab = "Contribution (dollars)")
+
+```
+
+### Contribution amounts for Clinton and Saunders
+
+<!-- 7. Show positive contribution amounts under 1000 in two plots,
+     one for sanders and one for Clinton.  use density plots. -->
+     
+```{r}
+par(mfrow = c(2,1))
+plot(density(dat[dat$contb_receipt_amt > 0 & dat$contb_receipt_amt < 1000 & dat$cand_nm == "Clinton, Hillary Rodham", "contb_receipt_amt"]),
+     main = "Positive contributions under $1000 for Hillary Clinton",
+     col = "firebrick",
+     xlab = "Contribution (dollars)")
+plot(density(dat[dat$contb_receipt_amt > 0 & dat$contb_receipt_amt < 1000 & dat$cand_nm == "Sanders, Bernard", "contb_receipt_amt"]),
+     main = "Positive contributions under $1000 for Berry Sanders",
+     col = "firebrick",
+     xlab = "Contribution (dollars)")
+
+```
+
+### Contributions by employment
+
+<!-- 8. Show the number of contributions by occupation, for the 10 occupations
+     with the most contributions. Use a horizontal barplot. Limit occupation
+     to 18 characters.  Use a sorted barplot. -->
+     
+```{r}
+par(mar = c(3,15,3,3))
+barplot(order(table(dat$contbr_occupation)[1:10], decreasing = FALSE) , horiz = TRUE, las = 2)
+
+```
+
+<!-- 9. Create a new attribute "employment.status", derived from the contbr_occupation
+     attribute.  Let employment.status be "EMPLOYED" if contbr_occupation is not
+     "RETIRED" or "NOT EMPLOYED", and let employment.status be the contbr_occupation
+     otherwise.  Show the distribution of employment status as a barplot. -->
+     
+```{r}
+# dat = dat[complete.cases(dat), ]
+# status = apply(as.character(dat$contbr_occupation),1, function (z) ifelse( x != "RETIRED" & x != "NOT EMPLOYED", "EMPLYOED",x))
+# dat$employment.status = as.factor(status)
+# barplot(sort(table(dat$employment.status)), col = "firebrick", las = 2, main = "Contributor Employment Status")
+
+```
+
+<!-- 10. Create density plots for contribution amounts for employment.status of RETIRED 
+     and EMPLOYED, similarly to what was done for Cruz and Rubio contributions.  -->
+     
+```{r}
+
+
+```
+
+
+
+
+
+
